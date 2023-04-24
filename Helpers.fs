@@ -3,12 +3,9 @@
 open Item
 
 let insertItem start value' insertBefore =
-    printfn "Creating item: %s" (string value')
+    printfn "Creating item: %s" value'
 
-    let insert item before after =
-        match (insertBefore value' item) with
-        | true -> before
-        | false -> after
+    let insert item before after = if insertBefore value' item then before else after
 
     let fStart current _ innerVal = insert current {value = value'; next = Some current} {value = current.value; next = Some innerVal}
     let fOnly current = insert current {value = value'; next = Some current} {value = current.value; next = Some {value = value'; next = None}}
@@ -19,10 +16,7 @@ let insertItem start value' insertBefore =
     Some (itemFoldback' fStart fOnly fMiddle fLast fEmpty id None start)
 
 let removeItem start value' valueEquals =
-    let remove item remove retain =
-        match (valueEquals item value') with
-        | true -> remove
-        | false -> retain
+    let remove item remove retain = if valueEquals item value' then remove else retain
 
     let fStart current next innerVal = remove current (true, Some next) (fst innerVal, Some {value = current.value; next = snd innerVal})
     let fOnly current = remove current (true, None) (false, Some current)
@@ -31,9 +25,7 @@ let removeItem start value' valueEquals =
     let fEmpty _ = false, None
 
     let removed, result = itemFoldback' fStart fOnly fMiddle fLast fEmpty id None start
-    match removed with
-    | true -> printfn "Removed item: %s" (string value')
-    | false -> printfn "Item %s does not exist!" (string value')
+    printfn (if removed then "Removed item: %s" else "Item %s does not exist!") value'
     result
 
 let removeAll _ = None
@@ -41,39 +33,39 @@ let removeAll _ = None
 let printLoop (start: _ option) =
     let mutable item = start
     while item.IsSome do
-        item <- itemPrintGetNext item.Value
+        item <- printGetNext item.Value
 
 let printIterator start =
     Seq.iter (fun item ->
         match item with
-        | Some item' -> itemPrintGetNext item' |> ignore
-        | None -> ()) (itemSequence start)
+        | None -> ()
+        | Some item' -> printGetNext item' |> ignore) (itemSequence start)
 
 let printArray (start: Item<_> option) =
     match start with
-    | Some start' ->
-        let rec printIndexGetNext index =
-            match start'.[index] with
-            | Some item ->
-                itemPrintGetNext item |> ignore
-                printIndexGetNext (index + 1)
-            | None -> ()
-        printIndexGetNext 0
     | None -> ()
+    | Some start' ->
+        let rec indexPrintGetNext index =
+            match start'.[index] with
+            | None -> ()
+            | Some item ->
+                printGetNext item |> ignore
+                indexPrintGetNext (index + 1)
+        indexPrintGetNext 0
 
 let rec printRecursive start =
     match start with
-    | Some start' -> printRecursive (itemPrintGetNext start')
     | None -> ()
+    | Some start' -> printRecursive (printGetNext start')
 
 let printFold start =
-    let fSome current _ accumulator = sprintf "%s%s, " accumulator (string current.value)
-    let fLast current accumulator = sprintf "%s%s\n" accumulator (string current.value)
+    let fSome current _ accumulator = sprintf "%s%s, " accumulator current.value
+    let fLast current accumulator = sprintf "%s%s\n" accumulator current.value
     let fEmpty accumulator = accumulator
     printf "%s" (itemFold fSome fLast fEmpty "" start)
 
 let printFoldback start =
-    let fSome current _ innerVal = sprintf "%s, %s" (string current.value) innerVal
-    let fLast current = sprintf "%s\n" (string current.value)
+    let fSome current _ innerVal = sprintf "%s, %s" current.value innerVal
+    let fLast current = sprintf "%s\n" current.value
     let fEmpty _ = ""
     printf "%s" (itemFoldback fSome fLast fEmpty id start)

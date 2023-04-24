@@ -4,77 +4,75 @@ type Item<'T> = { value: 'T; next: Item<'T> option }
     with
         member this.Item with get index =
             let rec atIndex item index' =
-                match index' with
-                | 0 -> item
-                | _ ->
+                if index' = 0 then
+                    item
+                else
                     match item with
-                    | Some item' -> atIndex item'.next (index' - 1)
                     | None -> None
+                    | Some item' -> atIndex item'.next (index' - 1)
             atIndex (Some this) index
 
-let itemPrintGetNext item =
-    match item.next with
-    | Some _ -> printf "%s, " (string item.value)
-    | None -> printf "%s\n" (string item.value)
+let printGetNext item =
+    printf "%s%s" item.value (if item.next.IsNone then "\n" else ", ")
     item.next
 
 let rec itemSequence item =
     seq {
         match item with
+        | None -> ()
         | Some item' ->
             yield item
             yield! itemSequence item'.next
-        | None -> ()
     }
 
 let rec itemFold fSome fLast fEmpty accumulator item =
     match item with
+    | None -> fEmpty accumulator
     | Some item' ->
         let next = item'.next
         match next with
-        | Some next' -> itemFold fSome fLast fEmpty (fSome item' next' accumulator) next
         | None -> fLast item' accumulator
-    | None -> fEmpty accumulator
+        | Some next' -> itemFold fSome fLast fEmpty (fSome item' next' accumulator) next
 
 let rec itemFold' fStart fOnly fMiddle fLast fEmpty accumulator previous current =
     match current with
+    | None -> fEmpty accumulator
     | Some current' ->
         let next = current'.next
         match next with
+        | None ->
+            match previous with
+            | None -> fOnly current' accumulator
+            | Some previous' -> fLast previous' current' accumulator
         | Some next' ->
             let newAccumulator =
                 match previous with
-                | Some previous' -> fMiddle previous' current' next' accumulator
                 | None -> fStart current' next' accumulator
+                | Some previous' -> fMiddle previous' current' next' accumulator
             itemFold' fStart fOnly fMiddle fLast fEmpty newAccumulator current next
-        | None ->
-            match previous with
-            | Some previous' -> fLast previous' current' accumulator
-            | None -> fOnly current' accumulator
-    | None -> fEmpty accumulator
 
 let rec itemFoldback fSome fLast fEmpty generator item =
     match item with
+    | None -> generator (fEmpty ())
     | Some item' ->
         let next = item'.next
         match next with
-        | Some next' -> itemFoldback fSome fLast fEmpty (generator << fSome item' next') next
         | None -> generator (fLast item')
-    | None -> generator (fEmpty ())
+        | Some next' -> itemFoldback fSome fLast fEmpty (generator << fSome item' next') next
 
 let rec itemFoldback' fStart fOnly fMiddle fLast fEmpty generator previous current =
     match current with
+    | None -> generator (fEmpty ())
     | Some current' ->
         let next = current'.next
         match next with
+        | None ->
+            match previous with
+            | None -> generator (fOnly current')
+            | Some previous' -> generator (fLast previous' current')
         | Some next' ->
             let newInner =
                 match previous with
-                | Some previous' -> fMiddle previous' current' next'
                 | None -> fStart current' next'
+                | Some previous' -> fMiddle previous' current' next'
             itemFoldback' fStart fOnly fMiddle fLast fEmpty (generator << newInner) current next
-        | None ->
-            match previous with
-            | Some previous' -> generator (fLast previous' current')
-            | None -> generator (fOnly current')
-    | None -> generator (fEmpty ())
